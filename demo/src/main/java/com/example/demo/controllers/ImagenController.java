@@ -18,59 +18,95 @@ import com.example.demo.model.Image;
 import com.example.demo.repo.imagenRepo;
 import com.example.demo.repo.productoRepo;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+
+import java.net.URI;
+import org.springframework.http.ResponseEntity;
+
+
 @RestController
+@Tag(name = "Imágenes", description = "Operaciones para consultar y administrar imágenes")
+@SecurityRequirement(name = "bearerAuth")
 public class ImagenController {
 
 @Autowired
 imagenRepo repo;
 @Autowired
 productoRepo repoProducto;
+
+
 @GetMapping("imagenes")
-  public List<Image> findAllimagenes() {
-    return this.repo.findAll();
+  @SecurityRequirements
+  @Operation(summary = "Listar imágenes")
+  public ResponseEntity<List<Image>> findAllimagenes() {
+    return ResponseEntity.ok(repo.findAll());
   }
 
 @PostMapping("imagen")
-  public Image addimagen(@RequestBody Image imagen) {
-
-    return repo.save(imagen);
+  @Operation(summary = "Crear imagen")
+public ResponseEntity<Image> addimagen(@RequestBody Image imagen) {
+  imagen.setId(null);
+  Image saved = repo.save(imagen);
+  URI location = URI.create("/imagen/" + saved.getId());
+  return ResponseEntity.created(location).body(saved);
   }
+
   @PostMapping("imagen/{productId}")
-  public Image addimagen(@RequestBody Image imagen,@PathVariable String productId) {
-    Optional<Producto> p = repoProducto.findById(productId);
-    if(p.isPresent()){
-      //System.out.println(p.get().getNombre());
-      imagen.setProducto(p.get());
-    }
-    return repo.save(imagen);
-
+  @Operation(summary = "Crear imagen para un producto")
+  public ResponseEntity<Image> addimagen(@RequestBody Image imagen, @PathVariable String productId) {
+    return repoProducto.findById(productId)
+        .map(producto -> {
+          imagen.setId(null);
+          imagen.setProducto(producto);
+          Image saved = repo.save(imagen);
+          URI location = URI.create("/imagen/" + saved.getId());
+          return ResponseEntity.created(location).body(saved);
+        })
+        .orElseGet(() -> ResponseEntity.notFound().build());
   }
-  @GetMapping("imagen/{productId}")
-  public Set<Image>  getImagensByProduct(@PathVariable String productId) {
-    Optional<Producto> p = repoProducto.findById(productId);
-    if(p.isPresent()){
-      return  p.get().getImagenes();
-    }
-    return null;
 
+  
+  @GetMapping("imagenes/producto/{productId}")
+  @SecurityRequirements
+  @Operation(summary = "Listar imágenes de un producto")
+  public ResponseEntity<Set<Image>> getImagensByProduct(@PathVariable String productId) {
+    return repoProducto.findById(productId)
+        .map(p -> ResponseEntity.ok(p.getImagenes()))
+        .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
 @GetMapping("imagen/{id}")
-public Optional<Image> getById(@PathVariable String id) {
-    return repo.findById(id);
-}
+  @SecurityRequirements
+  @Operation(summary = "Buscar imagen por ID")
+public ResponseEntity<Image> getById(@PathVariable String id) {
+  return repo.findById(id)
+  .map(value -> ResponseEntity.ok(value))
+  .orElseGet(() -> ResponseEntity.notFound().build());
+  }
 
 
 @PutMapping("imagen/{id}")
-public Image putusuari(@PathVariable String id, @RequestBody Image imagen) {
+  @Operation(summary = "Reemplazar imagen")
+  public ResponseEntity<Image> putImagen(@PathVariable String id, @RequestBody Image imagen) {
+    if (!repo.existsById(id)) {
+      return ResponseEntity.notFound().build();
+    }
     imagen.setId(id);
-    return repo.save(imagen);
-}
+    return ResponseEntity.ok(repo.save(imagen));
+  }
 
 @DeleteMapping("imagen/{id}")
-public String deleteMailbox(@PathVariable String id) {
-    repo.deleteById(id);
-    return "{\"success\":true}";
+  @Operation(summary = "Eliminar imagen")
+public ResponseEntity<Void> deleteImagen(@PathVariable String id) {
+  if (!repo.existsById(id)) {
+    return ResponseEntity.notFound().build();
+  }
+  repo.deleteById(id);
+  return ResponseEntity.ok().build();
 }
 }
 
